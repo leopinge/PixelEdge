@@ -11,13 +11,18 @@ def filtro_sobel(imagem_cinza, fator=1):
     #   [-2   0  +2]                   [ 0   0   0]
     #   [-1   0  +1]                   [+1  +2  +1]
     #
-    # CV_64F usa ponto flutuante para nao perder valores negativos no calculo.
+    # Assim como no Prewitt, definimos os kernels manualmente e aplicamos
+    # a convolucao sobre a imagem em ponto flutuante.
+    kernel_horizontal = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=np.float64)
+    kernel_vertical = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]], dtype=np.float64)
+
+    imagem_float = imagem_cinza.astype(np.float64)
 
     # gradiente_horizontal: detecta bordas verticais (variacao da esquerda pra direita)
-    gradiente_horizontal = cv2.Sobel(imagem_cinza, cv2.CV_64F, 1, 0, ksize=3)
+    gradiente_horizontal = cv2.filter2D(imagem_float, -1, kernel_horizontal)
 
     # gradiente_vertical: detecta bordas horizontais (variacao de cima pra baixo)
-    gradiente_vertical = cv2.Sobel(imagem_cinza, cv2.CV_64F, 0, 1, ksize=3)
+    gradiente_vertical = cv2.filter2D(imagem_float, -1, kernel_vertical)
 
     # A magnitude combina os dois gradientes: sqrt(gh^2 + gv^2)
     # Quanto maior a variacao entre pixels vizinhos, mais forte a borda.
