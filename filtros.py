@@ -2,80 +2,94 @@ import cv2
 import numpy as np
 
 
-def filtro_sobel(imagem_cinza, fator=4):
-    # Sobel calcula a variação de intensidade (gradiente) em duas direções.
-    # Usa kernels 3x3 com peso duplo no centro para dar mais precisão.
+def filtro_sobel(imagem_cinza, fator=1):
+    # Sobel calcula a variacao de intensidade (gradiente) em duas direcoes.
+    # Usa kernels 3x3 com peso duplo no centro para dar mais precisao.
     #
     #   Kernel X (bordas verticais):   Kernel Y (bordas horizontais):
     #   [-1   0  +1]                   [-1  -2  -1]
     #   [-2   0  +2]                   [ 0   0   0]
     #   [-1   0  +1]                   [+1  +2  +1]
     #
-    # CV_64F usa ponto flutuante para não perder valores negativos no cálculo.
+    # CV_64F usa ponto flutuante para nao perder valores negativos no calculo.
 
-    # gradiente_horizontal: detecta bordas verticais (variação da esquerda pra direita)
+    # gradiente_horizontal: detecta bordas verticais (variacao da esquerda pra direita)
     gradiente_horizontal = cv2.Sobel(imagem_cinza, cv2.CV_64F, 1, 0, ksize=3)
 
-    # gradiente_vertical: detecta bordas horizontais (variação de cima pra baixo)
+    # gradiente_vertical: detecta bordas horizontais (variacao de cima pra baixo)
     gradiente_vertical = cv2.Sobel(imagem_cinza, cv2.CV_64F, 0, 1, ksize=3)
 
-    # A magnitude combina os dois gradientes: sqrt(gh² + gv²)
-    # Quanto maior a variação entre pixels vizinhos, mais forte a borda.
+    # A magnitude combina os dois gradientes: sqrt(gh^2 + gv^2)
+    # Quanto maior a variacao entre pixels vizinhos, mais forte a borda.
     magnitude = np.sqrt(gradiente_horizontal**2 + gradiente_vertical**2)
 
     # Amplifica a magnitude por um fator fixo e corta em 255.
     # Diferente do NORM_MINMAX (que normaliza cada imagem individualmente),
-    # isso preserva as diferenças naturais de intensidade entre os filtros.
+    # isso preserva as diferencas naturais de intensidade entre os filtros.
     return np.clip(magnitude * fator, 0, 255).astype(np.uint8)
 
 
-def filtro_prewitt(imagem_cinza, fator=4):
+def filtro_prewitt(imagem_cinza, fator=1):
     # Prewitt funciona igual ao Sobel, mas com pesos uniformes (sem peso duplo).
-    # É mais simples e mais sensível a ruído.
+    # E mais simples e mais sensivel a ruido.
     #
     #   Kernel X:        Kernel Y:
     #   [-1  0  +1]      [-1  -1  -1]
     #   [-1  0  +1]      [ 0   0   0]
     #   [-1  0  +1]      [+1  +1  +1]
     #
-    # O kernel é uma matriz 3x3 que é deslizada sobre cada pixel da imagem.
+    # O kernel e uma matriz 3x3 que e deslizada sobre cada pixel da imagem.
     # Para cada pixel, multiplica os 8 vizinhos pelos valores do kernel e soma tudo.
-    # Se os pixels vizinhos forem muito diferentes entre si, a soma será alta — isso indica borda.
-    # Se a região for uniforme (pixels iguais), a soma será zero — sem borda.
+    # Se os pixels vizinhos forem muito diferentes entre si, a soma sera alta e isso indica borda.
+    # Se a regiao for uniforme (pixels iguais), a soma sera zero e nao ha borda.
 
     kernel_horizontal = np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]], dtype=np.float64)
-    kernel_vertical   = np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]], dtype=np.float64)
+    kernel_vertical = np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]], dtype=np.float64)
 
-    # filter2D aplica a convolução: desliza o kernel sobre cada pixel da imagem
+    # filter2D aplica a convolucao: desliza o kernel sobre cada pixel da imagem
     # e calcula a soma ponderada dos vizinhos.
-    imagem_float      = imagem_cinza.astype(np.float64)
+    imagem_float = imagem_cinza.astype(np.float64)
     gradiente_horizontal = cv2.filter2D(imagem_float, -1, kernel_horizontal)
-    gradiente_vertical   = cv2.filter2D(imagem_float, -1, kernel_vertical)
+    gradiente_vertical = cv2.filter2D(imagem_float, -1, kernel_vertical)
 
     magnitude = np.sqrt(gradiente_horizontal**2 + gradiente_vertical**2)
 
     return np.clip(magnitude * fator, 0, 255).astype(np.uint8)
 
 
-def filtro_laplaciano(imagem_cinza, fator=4):
-    # Laplaciano usa a segunda derivada, ou seja, detecta onde a variação
-    # de intensidade muda de direção — isso indica a presença de uma borda.
-    # Detecta bordas em todas as direções ao mesmo tempo.
+def filtro_laplaciano(imagem_cinza, fator=1):
+    # Laplaciano usa a segunda derivada, ou seja, detecta onde a variacao
+    # de intensidade muda de direcao e isso indica a presenca de uma borda.
+    # Detecta bordas em todas as direcoes ao mesmo tempo.
 
-    # Antes de aplicar, suaviza a imagem com filtro Gaussiano para reduzir ruído,
-    # pois o Laplaciano é muito sensível a variações pequenas.
-    imagem_suavizada = cv2.GaussianBlur(imagem_cinza, (3, 3), sigmaX=1)
+    # Mascara classica 3x3 do Laplaciano (4-vizinhos).
+    # Centro positivo e vizinhos negativos:
+    #
+    #   [ 0  -1   0]
+    #   [-1   4  -1]
+    #   [ 0  -1   0]
+    #
+    # Se o pixel central for muito diferente dos vizinhos, a resposta em modulo
+    # sera alta, indicando borda. Em regioes uniformes, o resultado tende a zero.
+    kernel_laplace = np.array([
+        [0, -1, 0],
+        [-1, 4, -1],
+        [0, -1, 0]
+    ], dtype=np.float64)
 
-    # Aplica o Laplaciano. O resultado pode ter valores negativos,
-    # por isso usa CV_64F e depois pega o valor absoluto.
-    resultado = np.abs(cv2.Laplacian(imagem_suavizada, cv2.CV_64F, ksize=3))
+    imagem_float = imagem_cinza.astype(np.float64)
+    resultado = cv2.filter2D(imagem_float, -1, kernel_laplace)
+
+    # A segunda derivada pode gerar valores positivos ou negativos.
+    # Para visualizar forca de borda, usamos o valor absoluto.
+    resultado = np.abs(resultado)
 
     return np.clip(resultado * fator, 0, 255).astype(np.uint8)
 
 
-def aplicar_filtro(imagem_original, nome_filtro, fator=4):
+def aplicar_filtro(imagem_original, nome_filtro, fator=1):
     # Todo filtro de borda trabalha em escala de cinza (1 canal).
-    # A imagem colorida é convertida antes de qualquer processamento.
+    # A imagem colorida e convertida antes de qualquer processamento.
     imagem_cinza = cv2.cvtColor(imagem_original, cv2.COLOR_BGR2GRAY)
 
     if nome_filtro == "Sobel":
@@ -85,5 +99,5 @@ def aplicar_filtro(imagem_original, nome_filtro, fator=4):
     elif nome_filtro == "Laplaciano":
         return filtro_laplaciano(imagem_cinza, fator)
 
-    # Se o filtro for "Cinza", retorna a imagem só convertida, sem bordas.
+    # Se o filtro for "Cinza", retorna a imagem so convertida, sem bordas.
     return imagem_cinza
